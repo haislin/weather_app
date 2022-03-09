@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:lottie/lottie.dart';
 import 'package:weather/config.dart';
 import 'package:weather/weather_image_picker.dart';
 import 'package:weather/weather_info_card.dart';
@@ -38,19 +40,16 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
     }
 
     return Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high);
+      desiredAccuracy: LocationAccuracy.best,
+    );
   }
 
-  final Map<String, dynamic> _location = {
-    'latitude': '18.47551171818587',
-    'longitude': '-69.93450623878825',
-  };
 //http request
-  Future<Map> getWeather(
-      String latitude, String longitude, String lang, String units) async {
+  Future<Map> getWeather(String lang, String units) async {
     String apiKey = Config().apiKey;
-    String lat = latitude;
-    String lon = longitude;
+    Position position = await _determinePosition();
+    String lat = position.latitude.toString();
+    String lon = position.longitude.toString();
     String langCode = lang;
     String unit = units;
     String url =
@@ -66,6 +65,20 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
     "Clouds",
     "Min Temp",
     "Max Temp",
+    "Feels Like",
+    "Visibility",
+  ];
+
+  final List<String> _weatherFacts = [
+    "The fastest wind ever recorded was over 7,000 km/h.",
+    "The highest atmospheric pressure ever recorded was over 1,100 bars.",
+    "The most cloudy day was on March 21, 2019.",
+    "The lowest temperature ever recorded was -89.2°C.",
+    "The highest temperature ever recorded was -89.2°C.",
+    "The longest visibility ever recorded was over 1,000 km.",
+    "The lowest humidity ever recorded was 0%.",
+    "A thunderstorm can produce 160kmph winds.",
+    "About 2,000 thunderstorms rain down on Earth every minute."
   ];
 
   @override
@@ -78,12 +91,26 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
     var size = MediaQuery.of(context).size;
     return Scaffold(
       body: FutureBuilder(
-        future: getWeather(
-            _location['latitude'], _location['longitude'], 'en', 'metric'),
+        future: getWeather('en', 'metric'),
         builder: (context, AsyncSnapshot<Map> snapshot) {
           if (ConnectionState.waiting == snapshot.connectionState) {
-            return const Center(
-              child: CircularProgressIndicator(),
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                      child: Lottie.asset('assets/loading.json', repeat: true)),
+                  Text(
+                    _weatherFacts[Random().nextInt(_weatherFacts.length)],
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ),
             );
           } else if (snapshot.hasError) {
             return Center(
@@ -110,6 +137,8 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
               content["clouds"]["all"].toString() + "%",
               content["main"]["temp_min"].toString() + "°C",
               content["main"]["temp_max"].toString() + "°C",
+              content["main"]["feels_like"].toString() + "°C",
+              content["visibility"].toString() + "m",
             ];
             return CustomScrollView(
               physics: const BouncingScrollPhysics(),
@@ -118,22 +147,8 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
                   backgroundColor: Colors.transparent,
                   actions: [
                     IconButton(
-                        onPressed: () {
-                          _determinePosition().then((position) {
-                            if (position != null) {
-                              setState(() {
-                                _location['latitude'] =
-                                    position.latitude.toString();
-                                _location['longitude'] =
-                                    position.longitude.toString();
-                              });
-                              print(_location['latitude'] +
-                                  " " +
-                                  _location['longitude']);
-                            }
-                          });
-                        },
-                        icon: const Icon(CupertinoIcons.location)),
+                        onPressed: () {},
+                        icon: const Icon(CupertinoIcons.search)),
                   ],
                 ),
                 SliverToBoxAdapter(
@@ -148,7 +163,9 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
                         width: size.width * 0.5,
                       ),
                       Text(
-                        content['name'].toString(),
+                        content["sys"]["country"].toString() +
+                            " " +
+                            content['name'].toString(),
                         style:
                             const TextStyle(fontSize: 20, color: Colors.white),
                       ),
